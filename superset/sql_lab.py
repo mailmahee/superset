@@ -110,25 +110,23 @@ def get_sql_results(self, query_id, return_results=True, store_results=False):
     try:
         conn = engine.raw_connection()
         cursor = conn.cursor()
-        cursor.execute(query.executed_sql,
-                       **db_engine_spec.cursor_execute_kwargs)
+        cursor.execute(
+            query.executed_sql, **db_engine_spec.cursor_execute_kwargs)
     except Exception as e:
+        logging.info("Couldn't create the table.")
         logging.exception(e)
+        conn.commit()
+        conn.close()
         handle_error(db_engine_spec.extract_error_message(e))
 
     query.status = QueryStatus.RUNNING
     session.flush()
+    logging.info("Handling cursor")
     db_engine_spec.handle_cursor(cursor, query, session)
-
-    try:
-        if db_engine_spec.limit_method == LimitMethod.FETCH_MANY:
-            data = cursor.fetchmany(query.limit)
-        else:
-            data = cursor.fetchall()
-        conn.close()
-    except Exception as e:
-        logging.exception(e)
-        handle_error(db_engine_spec.extract_error_message(e))
+    logging.info("Fetching data: {}".format(query.to_dict()))
+    data = db_engine_spec.fetch_data(cursor, query.limit)
+    conn.commit()
+    conn.close()
 
     column_names = (
         [col[0] for col in cursor.description] if cursor.description else [])

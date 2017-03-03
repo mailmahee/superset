@@ -68,6 +68,11 @@ class BaseTemplateProcessor(object):
         template = self.env.from_string(sql)
         return template.render(self.context)
 
+    def _schema_table(cls, table_name, schema):
+        if '.' in table_name:
+            schema, table_name = table_name.split('.')
+        return table_name, schema
+
 
 class PrestoTemplateProcessor(BaseTemplateProcessor):
     """Presto Jinja context

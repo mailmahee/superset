@@ -20,6 +20,7 @@ from collections import namedtuple, defaultdict
 from superset import utils
 
 import inspect
+import logging
 import re
 import sqlparse
 import textwrap
@@ -45,6 +46,12 @@ class BaseEngineSpec(object):
     cursor_execute_kwargs = {}
     time_grains = tuple()
     limit_method = LimitMethod.FETCH_MANY
+
+    @classmethod
+    def fetch_data(cls, cursor, limit):
+        if cls.limit_method == LimitMethod.FETCH_MANY:
+            return cursor.fetchmany(limit)
+        return cursor.fetchall()
 
     @classmethod
     def epoch_to_dttm(cls):
@@ -161,6 +168,14 @@ class PostgresEngineSpec(BaseEngineSpec):
         Grain("quarter", _('quarter'), "DATE_TRUNC('quarter', {col})"),
         Grain("year", _('year'), "DATE_TRUNC('year', {col})"),
     )
+
+    @classmethod
+    def fetch_data(cls, cursor, limit):
+        if not cursor.description:
+            return []
+        if cls.limit_method == LimitMethod.FETCH_MANY:
+            return cursor.fetchmany(limit)
+        return cursor.fetchall()
 
     @classmethod
     def epoch_to_dttm(cls):
@@ -387,12 +402,6 @@ class PrestoEngineSpec(BaseEngineSpec):
             {limit_clause}
         """).format(**locals())
         return sql
-
-    @classmethod
-    def _schema_table(cls, table_name, schema):
-        if '.' in table_name:
-            schema, table_name = table_name.split('.')
-        return table_name, schema
 
     @classmethod
     def _latest_partition_from_df(cls, df):
